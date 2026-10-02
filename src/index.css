@@ -25,6 +25,8 @@
   .flashcard-front,
   .flashcard-back {
     position: absolute;
+    top: 0;
+    left: 0;
     width: 100%;
     height: 100%;
     -webkit-backface-visibility: hidden;
@@ -33,6 +35,7 @@
     flex-direction: column;
     justify-content: space-between;
     border-radius: 1.5rem;
+    box-sizing: border-box;
   }
 
   .flashcard-back {

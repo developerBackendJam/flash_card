@@ -255,9 +255,9 @@ export default function StudyPage() {
         className="
           flex-1 min-h-0
           flex flex-col items-center
-          px-4 sm:px-6
-          py-4 sm:py-5
-          overflow-hidden
+          px-3.5 sm:px-6
+          pt-3 sm:pt-5
+          pb-10 sm:pb-6
           w-full max-w-2xl mx-auto
         "
         data-purpose="study-area"
@@ -268,8 +268,8 @@ export default function StudyPage() {
           total={total}
         />
 
-        {/* Flashcard Area — flex-1 fills remaining vertical space */}
-        <div className="w-full flex-1 min-h-0 mt-3 flex items-center justify-center">
+        {/* Flashcard Area — min-height prevents collapse on mobile */}
+        <div className="w-full flex-1 min-h-[360px] sm:min-h-[400px] lg:min-h-0 mt-2.5 sm:mt-3 flex items-center justify-center">
           {isLoadingCards || isLoadingDecks ? (
             /* Loading State */
             <div className="w-full h-full flex flex-col items-center justify-center bg-white border border-stone-200 shadow-md rounded-2xl p-6 text-center">

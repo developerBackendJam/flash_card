@@ -1,11 +1,11 @@
 import React from 'react';
+import { playPronunciation } from '../../utils/audioHelper';
 
 /**
  * Flashcard — Responsive across 375px → 1440px
  *
  * Layout:
- *  - Parent (StudyPage) passes a flex-1 min-h-0 wrapper div
- *  - This component fills that wrapper with h-full
+ *  - Responsive min-height for mobile to prevent card collapse
  *  - Front/Back use absolute inset-0 (CSS) to match dynamic height
  */
 export default function Flashcard({ card, isFlipped, onToggleFlip }) {
@@ -46,13 +46,7 @@ export default function Flashcard({ card, isFlipped, onToggleFlip }) {
 
   const handleSpeak = (e) => {
     e.stopPropagation();
-    if ('speechSynthesis' in window && word) {
-      window.speechSynthesis.cancel();
-      const utt = new SpeechSynthesisUtterance(word);
-      utt.lang = 'en-US';
-      utt.rate = 0.85;
-      window.speechSynthesis.speak(utt);
-    }
+    playPronunciation(word);
   };
 
   const highlightWord = (sentence, w) => {
@@ -67,7 +61,7 @@ export default function Flashcard({ card, isFlipped, onToggleFlip }) {
 
   return (
     <div
-      className="w-full h-full perspective-1000 cursor-pointer select-none"
+      className="w-full h-[360px] sm:h-[400px] md:h-[430px] lg:h-full min-h-[340px] max-w-xl mx-auto perspective-1000 cursor-pointer select-none relative"
       onClick={onToggleFlip}
       title="Click để lật thẻ"
       data-purpose="flashcard-container"
@@ -75,27 +69,27 @@ export default function Flashcard({ card, isFlipped, onToggleFlip }) {
       <div className={`flashcard-inner h-full ${isFlipped ? 'is-flipped' : ''}`}>
 
         {/* ─── FRONT ─────────────────────────────────────── */}
-        <div className="flashcard-front bg-white border border-stone-200 shadow-md rounded-2xl
-                        px-5 py-4 sm:px-7 sm:py-5
-                        hover:shadow-lg transition-shadow duration-300">
+        <div className="flashcard-front bg-white border border-stone-200/90 shadow-md sm:shadow-lg rounded-2xl
+                        px-5 py-5 sm:px-7 sm:py-6
+                        hover:shadow-xl transition-shadow duration-300">
 
           {/* Tag + speaker */}
-          <div className="flex items-start justify-between w-full gap-2">
+          <div className="flex items-center justify-between w-full gap-2">
             <span className="inline-flex items-center text-[10px] sm:text-[11px] font-bold uppercase tracking-wider
-                             px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full
-                             bg-[#fdf0e6] text-[#6d1844] border border-[#e8c4aa] leading-none">
+                             px-2.5 py-1 rounded-full
+                             bg-[#fdf0e6] text-[#6d1844] border border-[#e8c4aa] leading-none shadow-xs">
               {partOfSpeech}
             </span>
             <button
               type="button"
               onClick={handleSpeak}
               aria-label="Phát âm từ"
-              className="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full
-                         border border-stone-200 text-stone-400
+              className="w-9 h-9 sm:w-10 sm:h-10 flex-shrink-0 flex items-center justify-center rounded-full
+                         bg-[#faf5f0] text-stone-600 border border-stone-200
                          hover:text-[#6d1844] hover:border-[#6d1844] hover:bg-[#fdf0e6]
-                         transition-colors active:scale-95"
+                         active:scale-90 transition-all shadow-xs cursor-pointer"
             >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round"
                   d="M15.536 8.464a5 5 0 010 7.072M17.95 6.05a8 8 0 010 11.9M6 9H4a1 1 0 00-1 1v4a1 1 0 001 1h2l4 4V5L6 9z" />
               </svg>

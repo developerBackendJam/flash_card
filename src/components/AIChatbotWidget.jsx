@@ -61,15 +61,14 @@ export default function AIChatbotWidget({ currentCard, userName = 'Alex' }) {
 
   return (
     <div
-      className="fixed right-6 z-50 flex flex-col items-end"
+      className="fixed right-3 sm:right-6 bottom-3 sm:bottom-5 z-40 flex flex-col items-end"
       data-purpose="ai-chat-assistant"
       id="lexibotWidget"
-      style={{ bottom: '4rem' }}
     >
       {/* Chat Popup Window */}
       {isOpen && (
         <div
-          className="mb-4 w-[360px] sm:w-[380px] bg-white rounded-2xl shadow-2xl shadow-burgundy-950/25 border border-burgundy-100 overflow-hidden flex flex-col transition-all duration-300 ease-out"
+          className="mb-3 w-[calc(100vw-1.5rem)] sm:w-[380px] bg-white rounded-2xl shadow-2xl shadow-burgundy-950/25 border border-burgundy-100 overflow-hidden flex flex-col transition-all duration-300 ease-out"
           id="chatWindow"
         >
           {/* Header */}
@@ -234,18 +233,18 @@ export default function AIChatbotWidget({ currentCard, userName = 'Alex' }) {
         <button
           aria-label="Mở trợ lý ảo AI"
           onClick={() => setIsOpen(!isOpen)}
-          className="relative w-14 h-14 rounded-full bg-gradient-to-tr from-burgundy-900 to-burgundy-700 hover:from-burgundy-950 hover:to-burgundy-800 text-white flex items-center justify-center shadow-xl shadow-burgundy-950/30 hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-burgundy-300/50 group"
+          className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-tr from-burgundy-900 to-burgundy-700 hover:from-burgundy-950 hover:to-burgundy-800 text-white flex items-center justify-center shadow-xl shadow-burgundy-950/30 hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-burgundy-300/50 group cursor-pointer"
           id="openChatBtn"
           type="button"
         >
           {/* Notification Badge */}
-          <span className="absolute -top-1 -right-1 flex h-4 w-4">
+          <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 flex h-3.5 w-3.5 sm:h-4 sm:w-4">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-burgundy-300 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 border-2 border-white"></span>
+            <span className="relative inline-flex rounded-full h-3.5 w-3.5 sm:h-4 sm:w-4 bg-emerald-500 border-2 border-white"></span>
           </span>
 
           {/* AI Sparkle / Bot Icon */}
-          <div className="w-11 h-11 rounded-full overflow-hidden border-2 border-white/30 flex items-center justify-center bg-black/30 group-hover:scale-105 transition-transform duration-300 shadow-inner">
+          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full overflow-hidden border-2 border-white/30 flex items-center justify-center bg-black/30 group-hover:scale-105 transition-transform duration-300 shadow-inner">
             <img
               alt="AI Assistant Avatar"
               className="w-full h-full object-cover object-center"

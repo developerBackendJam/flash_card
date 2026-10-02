@@ -3,15 +3,49 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import StudyPage from './pages/StudyPage';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ProtectedRoute from './components/auth/ProtectedRoute';
+import PublicOnlyRoute from './components/auth/PublicOnlyRoute';
 
 export default function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<StudyPage />} />
-        <Route path="/study" element={<StudyPage />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+        {/* Chỉ người dùng đã đăng nhập mới được vào học */}
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <StudyPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/study"
+          element={
+            <ProtectedRoute>
+              <StudyPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Khách chưa đăng nhập vào đăng nhập / đăng ký (nếu đã đăng nhập rồi thì vào thẳng /study) */}
+        <Route
+          path="/login"
+          element={
+            <PublicOnlyRoute>
+              <Login />
+            </PublicOnlyRoute>
+          }
+        />
+        <Route
+          path="/register"
+          element={
+            <PublicOnlyRoute>
+              <Register />
+            </PublicOnlyRoute>
+          }
+        />
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
