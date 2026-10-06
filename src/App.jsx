@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import StudyPage from './pages/StudyPage';
+import QuizArenaPage from './pages/QuizArenaPage';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -24,6 +25,16 @@ export default function App() {
           element={
             <ProtectedRoute>
               <StudyPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Cuộc thi Đấu trường 30 câu hỏi */}
+        <Route
+          path="/arena"
+          element={
+            <ProtectedRoute>
+              <QuizArenaPage />
             </ProtectedRoute>
           }
         />

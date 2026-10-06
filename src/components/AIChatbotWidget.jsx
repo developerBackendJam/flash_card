@@ -1,28 +1,45 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { generateAIReply } from '../utils/aiReply';
+
+const STORAGE_KEY = 'lexibot_chat_history';
+
+function getInitialMessages(userName) {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch {
+    // Bỏ qua lỗi đọc localStorage nếu có
+  }
+
+  return [
+    {
+      id: 1,
+      sender: 'ai',
+      text: `Xin chào ${userName}! Mình là LexiBot 👋 Mình sẵn sàng trò chuyện và giải đáp về MỌI chủ đề cùng bạn (đời sống, tâm sự, công nghệ, học tập, ngoại ngữ...). Bạn muốn chia sẻ hay hỏi gì hôm nay?`,
+      time: 'Vừa xong',
+    },
+  ];
+}
 
 export default function AIChatbotWidget({ currentCard, userName = 'Alex' }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState(() => getInitialMessages(userName));
   const [inputValue, setInputValue] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef(null);
 
-  // Initialize or update context message when current card changes
+  // Lưu lịch sử hội thoại vào localStorage mỗi khi có tin nhắn mới
   useEffect(() => {
-    if (!currentCard) return;
-
-    const activeWord = currentCard?.front ?? currentCard?.word ?? '';
-    const activeIpa = currentCard?.pronunciation ?? currentCard?.ipa ?? '';
-
-    setMessages([
-      {
-        id: 1,
-        sender: 'ai',
-        text: `Xin chào ${userName}! Mình là LexiBot. Bạn đang xem từ "${activeWord}"${activeIpa ? ` (${activeIpa})` : ''}.`,
-        time: 'Vừa xong',
-      },
-    ]);
-  }, [currentCard, userName]);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+    } catch (e) {
+      console.warn('Không thể lưu lịch sử chat:', e);
+    }
+  }, [messages]);
 
   useEffect(() => {
     if (isOpen) {
@@ -30,8 +47,25 @@ export default function AIChatbotWidget({ currentCard, userName = 'Alex' }) {
     }
   }, [messages, isOpen]);
 
-  const handleSendMessage = (textToSend) => {
+  // Xóa / Làm mới lịch sử trò chuyện
+  const handleClearHistory = () => {
+    const resetMsg = [
+      {
+        id: Date.now(),
+        sender: 'ai',
+        text: `Đã làm mới cuộc hội thoại! Bạn muốn trò chuyện về chủ đề gì tiếp theo?`,
+        time: 'Vừa xong',
+      },
+    ];
+    setMessages(resetMsg);
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {}
+  };
+
+  const handleSendMessage = async (textToSend) => {
     const text = (textToSend || inputValue).trim();
+
     if (!text) return;
 
     const userMsg = {
@@ -41,22 +75,72 @@ export default function AIChatbotWidget({ currentCard, userName = 'Alex' }) {
       time: 'Vừa xong',
     };
 
-    setMessages((prev) => [...prev, userMsg]);
-    if (!textToSend) setInputValue('');
+    // Cập nhật giao diện với tin nhắn mới của người dùng
+    const updatedMessages = [...messages, userMsg];
+    setMessages(updatedMessages);
 
-    // Generate responsive contextual AI answer
-    setTimeout(() => {
-      const reply = generateAIReply(text, currentCard);
+    if (!textToSend) {
+      setInputValue('');
+    }
+
+    setIsTyping(true);
+
+    // Thu thập tối đa 10 tin nhắn gần nhất để AI nhớ ngữ cảnh cuộc trò chuyện
+    const conversationHistory = updatedMessages
+      .filter((m) => m.sender === 'user' || m.sender === 'ai')
+      .slice(-10)
+      .map((m) => ({
+        role: m.sender === 'user' ? 'user' : 'assistant',
+        content: m.text,
+      }));
+
+    // URL Worker: ưu tiên VITE_WORKER_URL trong .env, fallback 8788 hoặc 8787
+    const workerUrl = import.meta.env.VITE_WORKER_URL ?? 'http://127.0.0.1:8788';
+
+    try {
+      const response = await fetch(`${workerUrl}/api/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: text,
+          // Gửi toàn bộ lịch sử hội thoại để AI ghi nhớ ngữ cảnh
+          history: conversationHistory,
+          // Chỉ gửi thông tin card để tham khảo khi người dùng chủ động hỏi
+          card: currentCard ?? null,
+        }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData?.error ?? `HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      const aiMsg = {
+        id: Date.now() + 1,
+        sender: 'ai',
+        text: data.reply ?? 'Mình không nhận được phản hồi từ AI.',
+        time: 'Vừa xong',
+      };
+
+      setMessages((prev) => [...prev, aiMsg]);
+    } catch (error) {
+      console.error('AI error:', error);
       setMessages((prev) => [
         ...prev,
         {
           id: Date.now() + 1,
           sender: 'ai',
-          text: reply,
+          text: `Xin lỗi, mình không thể kết nối với AI lúc này. (${error.message})`,
           time: 'Vừa xong',
         },
       ]);
-    }, 400);
+    } finally {
+      setIsTyping(false);
+    }
   };
 
   return (
@@ -88,21 +172,35 @@ export default function AIChatbotWidget({ currentCard, userName = 'Alex' }) {
                   <span className="text-[10px] bg-white/20 text-[#f5ebe0] px-1.5 py-0.5 rounded font-medium">Trợ lý</span>
                 </div>
                 <p className="text-[11px] text-[#f5ebe0]/80 flex items-center gap-1 font-medium">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse"></span> Đang trực tuyến
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse"></span> Nhớ ngữ cảnh hội thoại
                 </p>
               </div>
             </div>
-            <button
-              onClick={() => setIsOpen(false)}
-              className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors focus:outline-none"
-              id="closeChatBtn"
-              title="Đóng hộp thoại"
-              type="button"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
+
+            <div className="flex items-center gap-1">
+              <button
+                onClick={handleClearHistory}
+                className="text-white/80 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-colors focus:outline-none"
+                id="clearChatBtn"
+                title="Làm mới cuộc trò chuyện"
+                type="button"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+              <button
+                onClick={() => setIsOpen(false)}
+                className="text-white/80 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-colors focus:outline-none"
+                id="closeChatBtn"
+                title="Đóng hộp thoại"
+                type="button"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            </div>
           </div>
 
           {/* Chat Messages Body */}
@@ -125,8 +223,8 @@ export default function AIChatbotWidget({ currentCard, userName = 'Alex' }) {
                 <div className={`flex flex-col gap-1 max-w-[82%] ${msg.sender === 'user' ? 'items-end' : ''}`}>
                   <div
                     className={`p-3 rounded-2xl shadow-sm leading-relaxed whitespace-pre-line ${msg.sender === 'user'
-                        ? 'bg-burgundy-900 text-white rounded-tr-sm'
-                        : 'bg-white text-stone-800 rounded-tl-sm border border-stone-200/80'
+                      ? 'bg-burgundy-900 text-white rounded-tr-sm'
+                      : 'bg-white text-stone-800 rounded-tl-sm border border-stone-200/80'
                       }`}
                   >
                     {msg.text}
@@ -136,43 +234,69 @@ export default function AIChatbotWidget({ currentCard, userName = 'Alex' }) {
               </div>
             ))}
 
-            {/* AI Interactive Prompt Suggestions */}
-            <div className="flex items-start gap-2.5 pt-1">
-              <div className="w-7 h-7 rounded-lg bg-burgundy-900 text-white flex-shrink-0 flex items-center justify-center text-[10px] font-bold shadow-sm opacity-90">
-                LB
-              </div>
-              <div className="flex flex-col gap-1.5 max-w-[85%]">
-                <div className="bg-white p-3 rounded-2xl rounded-tl-sm border border-stone-200/80 shadow-sm text-stone-800 leading-relaxed space-y-2">
-                  <p className="font-semibold text-burgundy-950">Bạn muốn mình trợ giúp gì về từ này?</p>
-                  <div className="flex flex-col gap-1.5">
-                    <button
-                      onClick={() => handleSendMessage('Đặt 3 câu ví dụ giao tiếp')}
-                      className="text-left px-2.5 py-1.5 rounded-lg bg-burgundy-50 hover:bg-burgundy-100 text-burgundy-900 font-medium transition-colors border border-burgundy-100 text-[11px] flex items-center justify-between"
-                      type="button"
-                    >
-                      <span>✨ Đặt 3 câu ví dụ giao tiếp</span>
-                      <span>→</span>
-                    </button>
-                    <button
-                      onClick={() => handleSendMessage(`Phân biệt "${currentCard?.front ?? currentCard?.word ?? ''}" với từ đồng nghĩa`)}
-                      className="text-left px-2.5 py-1.5 rounded-lg bg-burgundy-50 hover:bg-burgundy-100 text-burgundy-900 font-medium transition-colors border border-burgundy-100 text-[11px] flex items-center justify-between"
-                      type="button"
-                    >
-                      <span>💡 Phân biệt từ đồng nghĩa</span>
-                      <span>→</span>
-                    </button>
-                    <button
-                      onClick={() => handleSendMessage('Hướng dẫn phát âm chuẩn Anh - Mỹ')}
-                      className="text-left px-2.5 py-1.5 rounded-lg bg-burgundy-50 hover:bg-burgundy-100 text-burgundy-900 font-medium transition-colors border border-burgundy-100 text-[11px] flex items-center justify-between"
-                      type="button"
-                    >
-                      <span>🗣️ Hướng dẫn phát âm chuẩn Anh - Mỹ</span>
-                      <span>→</span>
-                    </button>
+            {/* Quick Prompt Suggestions - Đa dạng chủ đề */}
+            {messages.length <= 2 && (
+              <div className="flex items-start gap-2.5 pt-1">
+                <div className="w-7 h-7 rounded-lg bg-burgundy-900 text-white flex-shrink-0 flex items-center justify-center text-[10px] font-bold shadow-sm opacity-90">
+                  LB
+                </div>
+                <div className="flex flex-col gap-1.5 max-w-[85%]">
+                  <div className="bg-white p-3 rounded-2xl rounded-tl-sm border border-stone-200/80 shadow-sm text-stone-800 leading-relaxed space-y-2">
+                    <p className="font-semibold text-burgundy-950">Gợi ý chủ đề trò chuyện:</p>
+                    <div className="flex flex-col gap-1.5">
+                      <button
+                        onClick={() => handleSendMessage('Chào LexiBot! Kể cho mình nghe một câu chuyện hoặc kiến thức thú vị hôm nay')}
+                        className="text-left px-2.5 py-1.5 rounded-lg bg-burgundy-50 hover:bg-burgundy-100 text-burgundy-900 font-medium transition-colors border border-burgundy-100 text-[11px] flex items-center justify-between"
+                        type="button"
+                      >
+                        <span>🌟 Kể một điều thú vị</span>
+                        <span>→</span>
+                      </button>
+                      <button
+                        onClick={() => handleSendMessage('Cho mình lời khuyên về cách duy trì kỷ luật và năng suất học tập')}
+                        className="text-left px-2.5 py-1.5 rounded-lg bg-burgundy-50 hover:bg-burgundy-100 text-burgundy-900 font-medium transition-colors border border-burgundy-100 text-[11px] flex items-center justify-between"
+                        type="button"
+                      >
+                        <span>🎯 Mẹo tăng năng suất học tập</span>
+                        <span>→</span>
+                      </button>
+                      <button
+                        onClick={() => handleSendMessage('Chúng ta có thể luyện nói tiếng Anh giao tiếp tự do được không?')}
+                        className="text-left px-2.5 py-1.5 rounded-lg bg-burgundy-50 hover:bg-burgundy-100 text-burgundy-900 font-medium transition-colors border border-burgundy-100 text-[11px] flex items-center justify-between"
+                        type="button"
+                      >
+                        <span>💬 Luyện giao tiếp tiếng Anh</span>
+                        <span>→</span>
+                      </button>
+                      {currentCard && (
+                        <button
+                          onClick={() => handleSendMessage(`Đặt 3 câu ví dụ giao tiếp với từ "${currentCard?.front ?? currentCard?.word ?? ''}"`)}
+                          className="text-left px-2.5 py-1.5 rounded-lg bg-burgundy-50 hover:bg-burgundy-100 text-burgundy-900 font-medium transition-colors border border-burgundy-100 text-[11px] flex items-center justify-between"
+                          type="button"
+                        >
+                          <span>📖 Đặt câu với từ "${currentCard?.front ?? currentCard?.word ?? ''}"</span>
+                          <span>→</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
+
+            {/* Typing indicator — hiển thị khi AI đang soạn phản hồi */}
+            {isTyping && (
+              <div className="flex items-start gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-burgundy-900 text-white flex-shrink-0 flex items-center justify-center text-[10px] font-bold shadow-sm">
+                  LB
+                </div>
+                <div className="bg-white rounded-2xl rounded-tl-sm border border-stone-200/80 shadow-sm px-4 py-3 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#6d1844] animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#6d1844] animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#6d1844] animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+              </div>
+            )}
 
             <div ref={messagesEndRef} />
           </div>
@@ -188,17 +312,18 @@ export default function AIChatbotWidget({ currentCard, userName = 'Alex' }) {
             >
               <div className="relative flex-1">
                 <input
-                  className="w-full text-xs py-2 px-3 pr-8 rounded-xl border border-stone-300 focus:outline-none focus:border-burgundy-900 focus:ring-1 focus:ring-burgundy-900 bg-stone-50/50 text-stone-800 placeholder-stone-400"
-                  placeholder="Hỏi nghĩa, cách dùng, ví dụ..."
+                  className="w-full text-xs py-2 px-3 pr-8 rounded-xl border border-stone-300 focus:outline-none focus:border-burgundy-900 focus:ring-1 focus:ring-burgundy-900 bg-stone-50/50 text-stone-800 placeholder-stone-400 disabled:opacity-60"
+                  placeholder={isTyping ? 'LexiBot đang soạn phản hồi...' : 'Trò chuyện về bất kỳ điều gì bạn muốn...'}
                   type="text"
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
+                  disabled={isTyping}
                 />
                 <button
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-burgundy-700 transition-colors"
                   title="Gợi ý câu hỏi"
                   type="button"
-                  onClick={() => setInputValue('Đặt câu ví dụ với từ này')}
+                  onClick={() => setInputValue('Hôm nay bạn có thể chia sẻ điều gì hay không?')}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <path d="M13 10V3L4 14h7v7l9-11h-7z" strokeLinecap="round" strokeLinejoin="round" />
@@ -206,13 +331,21 @@ export default function AIChatbotWidget({ currentCard, userName = 'Alex' }) {
                 </button>
               </div>
               <button
-                className="w-9 h-9 rounded-xl bg-burgundy-900 hover:bg-burgundy-800 text-white flex items-center justify-center flex-shrink-0 shadow-md shadow-burgundy-950/20 active:scale-95 transition-all"
+                className="w-9 h-9 rounded-xl bg-burgundy-900 hover:bg-burgundy-800 text-white flex items-center justify-center flex-shrink-0 shadow-md shadow-burgundy-950/20 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Gửi tin nhắn"
                 type="submit"
+                disabled={isTyping}
               >
-                <svg className="w-4 h-4 text-[#f5ebe0]" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-                  <path d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+                {isTyping ? (
+                  <svg className="w-4 h-4 text-[#f5ebe0] animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4 text-[#f5ebe0]" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                    <path d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
               </button>
             </form>
           </div>
@@ -225,7 +358,7 @@ export default function AIChatbotWidget({ currentCard, userName = 'Alex' }) {
         {!isOpen && (
           <div className="hidden sm:flex items-center gap-1.5 bg-white text-burgundy-950 font-bold text-xs py-1.5 px-3 rounded-full border border-burgundy-200/80 shadow-md shadow-stone-200/80 animate-bounce">
             <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span>Hỏi trợ lý AI từ vựng</span>
+            <span>Trò chuyện cùng AI</span>
           </div>
         )}
 
@@ -253,7 +386,7 @@ export default function AIChatbotWidget({ currentCard, userName = 'Alex' }) {
                 e.target.style.display = 'none';
                 e.target.parentElement.innerHTML = `
                   <svg class="w-6 h-6 text-[#f5ebe0]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" stroke-linecap="round" stroke-linejoin="round"></path>
+                    <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" stroke-linecap="round" stroke-linejoin="round"></path>
                   </svg>
                 `;
               }}

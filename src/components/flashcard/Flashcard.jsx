@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { playPronunciation } from '../../utils/audioHelper';
+import PronunciationCoachModal from './PronunciationCoachModal';
 
 /**
  * Flashcard — Responsive across 375px → 1440px
@@ -9,6 +10,8 @@ import { playPronunciation } from '../../utils/audioHelper';
  *  - Front/Back use absolute inset-0 (CSS) to match dynamic height
  */
 export default function Flashcard({ card, isFlipped, onToggleFlip }) {
+  const [isCoachOpen, setIsCoachOpen] = useState(false);
+
   if (!card) return null;
 
   // Mapping dữ liệu từ Database Supabase (hỗ trợ cả schema Supabase và mock fallback)
@@ -60,8 +63,9 @@ export default function Flashcard({ card, isFlipped, onToggleFlip }) {
   };
 
   return (
-    <div
-      className="w-full h-[360px] sm:h-[400px] md:h-[430px] lg:h-full min-h-[340px] max-w-xl mx-auto perspective-1000 cursor-pointer select-none relative"
+    <>
+      <div
+        className="w-full h-[360px] sm:h-[400px] md:h-[430px] lg:h-full min-h-[340px] max-w-xl mx-auto perspective-1000 cursor-pointer select-none relative"
       onClick={onToggleFlip}
       title="Click để lật thẻ"
       data-purpose="flashcard-container"
@@ -73,27 +77,53 @@ export default function Flashcard({ card, isFlipped, onToggleFlip }) {
                         px-5 py-5 sm:px-7 sm:py-6
                         hover:shadow-xl transition-shadow duration-300">
 
-          {/* Tag + speaker */}
+          {/* Tag + speaker & speech coach */}
           <div className="flex items-center justify-between w-full gap-2">
             <span className="inline-flex items-center text-[10px] sm:text-[11px] font-bold uppercase tracking-wider
                              px-2.5 py-1 rounded-full
                              bg-[#fdf0e6] text-[#6d1844] border border-[#e8c4aa] leading-none shadow-xs">
               {partOfSpeech}
             </span>
-            <button
-              type="button"
-              onClick={handleSpeak}
-              aria-label="Phát âm từ"
-              className="w-9 h-9 sm:w-10 sm:h-10 flex-shrink-0 flex items-center justify-center rounded-full
-                         bg-[#faf5f0] text-stone-600 border border-stone-200
-                         hover:text-[#6d1844] hover:border-[#6d1844] hover:bg-[#fdf0e6]
-                         active:scale-90 transition-all shadow-xs cursor-pointer"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round"
-                  d="M15.536 8.464a5 5 0 010 7.072M17.95 6.05a8 8 0 010 11.9M6 9H4a1 1 0 00-1 1v4a1 1 0 001 1h2l4 4V5L6 9z" />
-              </svg>
-            </button>
+
+            <div className="flex items-center gap-1.5">
+              {/* Nút Loa phát âm */}
+              <button
+                type="button"
+                onClick={handleSpeak}
+                aria-label="Phát âm từ"
+                title="Nghe phát âm chuẩn"
+                className="w-9 h-9 sm:w-10 sm:h-10 flex-shrink-0 flex items-center justify-center rounded-full
+                           bg-[#faf5f0] text-stone-600 border border-stone-200
+                           hover:text-[#6d1844] hover:border-[#6d1844] hover:bg-[#fdf0e6]
+                           active:scale-90 transition-all shadow-xs cursor-pointer"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round"
+                    d="M15.536 8.464a5 5 0 010 7.072M17.95 6.05a8 8 0 010 11.9M6 9H4a1 1 0 00-1 1v4a1 1 0 001 1h2l4 4V5L6 9z" />
+                </svg>
+              </button>
+
+              {/* Nút Luyện phát âm AI */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsCoachOpen(true);
+                }}
+                aria-label="Luyện phát âm AI"
+                title="Luyện đọc & AI chấm điểm"
+                className="flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full
+                           bg-[#fdf0e6] text-[#6d1844] border border-[#e8c4aa]
+                           hover:bg-[#6d1844] hover:text-white hover:border-[#6d1844]
+                           active:scale-95 transition-all shadow-xs text-xs font-bold cursor-pointer"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                </svg>
+                <span className="hidden sm:inline">Luyện phát âm</span>
+                <span className="sm:hidden">Luyện nói</span>
+              </button>
+            </div>
           </div>
 
           {/* Large word + IPA — responsive font sizes */}
@@ -199,5 +229,13 @@ export default function Flashcard({ card, isFlipped, onToggleFlip }) {
 
       </div>
     </div>
+
+    {/* Modal Luyện phát âm & AI Chấm điểm khẩu hình */}
+    <PronunciationCoachModal
+      isOpen={isCoachOpen}
+      onClose={() => setIsCoachOpen(false)}
+      card={card}
+    />
+  </>
   );
 }
